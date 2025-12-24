@@ -1,0 +1,117 @@
+from google.colab import drive
+drive.mount('/content/gdrive')
+print("✅ Google Drive Mounted")
+     
+
+%pip install langchain_community
+     
+
+import os
+from google.colab import userdata # Or just input your string
+
+# Setup the API Key
+os.environ["GOOGLE_API_KEY"] = userdata.get('GEMINI_API_KEY')
+print("✅ Environment Setup Complete")
+     
+
+%pip install pypdf
+from langchain_community.document_loaders import PyPDFLoader
+
+# Load the file (Change name to your file)
+loader = PyPDFLoader('/content/gdrive/MyDrive/training_data/sample_data.pdf')
+document = loader.load()
+
+print(f"✅ Document Loaded. Total Pages: {len(document)}")
+print(f"Sample Content from Page 1: {document[0].page_content[:200]}...")
+     
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+chunks = text_splitter.split_documents(document)
+
+print(f"✅ Document split into {len(chunks)} smaller chunks.")
+print(f"Example Chunk 1: \n{chunks[0].page_content}")
+     
+
+%pip install langchain_google_genai
+%pip install langchain_chroma
+     
+
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+
+# Use the Hugging Face local model
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+# Save chunks into the Vector Database (Chroma)
+vector_db = Chroma.from_documents(chunks, embeddings)
+
+print("✅ Knowledge stored in Chroma (Vector Database).")
+     
+
+%pip install langchain_google_genai, langchain.chains
+     
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_classic.chains import RetrievalQA
+# Initialize Gemini
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+
+# Connect the Database to Gemini
+rag_chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=vector_db.as_retriever())
+
+# Run the Demo
+query = "What is the main summary of this document?"
+result = rag_chain.invoke(query)
+
+print("🤖 Gemini's Answer:")
+print(result["result"])
+     
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from langchain_classic.chains import create_retrieval_chain
+
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    temperature=0,
+    max_output_tokens=512
+)
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful AI assistant. Answer only from the given context."),
+    MessagesPlaceholder("chat_history"),
+    ("human", """
+Context:
+{context}
+
+Question:
+{question}
+""")
+])
+
+doc_chain = create_stuff_documents_chain(llm, prompt)
+
+retriever = vector_db.as_retriever(search_kwargs={"k": 3})
+
+rag_chain = create_retrieval_chain(retriever, doc_chain)
+
+chat_history = []
+
+query = "What is the main summary of this document?"
+
+result = rag_chain.invoke({
+    "input": query, # Added 'input' key for the retriever
+    "question": query,
+    "chat_history": chat_history
+})
+
+chat_history.extend([
+    ("human", query),
+    ("ai", result["answer"])
+])
+
+print(result["answer"])
+     
