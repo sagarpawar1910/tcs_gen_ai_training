@@ -1,0 +1,29 @@
+# Install the Ollama binary
+!curl -fsSL https://ollama.com/install.sh | sh
+     
+
+!pip install langchain_ollama ChatOllama langchain_google_genai
+
+     
+
+import os
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from google.colab import userdata
+# FIX 1: You must assign the secret to an environment variable
+# Make sure your secret in Colab is named 'GOOGLE_API_KEY'
+os.environ["GOOGLE_API_KEY"] = userdata.get('GEMINI_API_KEY')
+
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash", # Or "gemini-1.5-pro"
+    temperature=0,
+    timeout=30,      # Give up after 30 seconds
+    max_retries=2,   # Don't retry indefinitely
+)
+
+prompt = """Write an email to my supervisor informing about leave ?"""
+
+# The syntax remains the same
+response = llm.invoke(prompt)
+print(response.content)
+     
