@@ -1,0 +1,53 @@
+pip install -qU langgraph langchain-google-genai google-generativeai ipython
+
+from langgraph.graph import StateGraph, MessagesState, START, END
+from langchain_google_genai import ChatGoogleGenerativeAI
+from IPython.display import Image, display
+import os
+from google.colab import userdata
+# 1. Setup API Keys
+os.environ["GOOGLE_API_KEY"] = userdata.get('GEMINI_API_KEY')
+# ----------------------------------
+# Gemini LLM
+# ----------------------------------
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    temperature=0.3
+)
+
+# ----------------------------------
+# LLM Node
+# ----------------------------------
+def gemini_node(state: MessagesState):
+    response = llm.invoke(state["messages"])
+    return {
+        "messages": state["messages"] + [response]
+    }
+
+# ----------------------------------
+# Build Graph
+# ----------------------------------
+graph = StateGraph(MessagesState)
+
+graph.add_node("gemini", gemini_node)
+graph.add_edge(START, "gemini")
+graph.add_edge("gemini", END)
+
+compiled_graph = graph.compile()
+
+# ----------------------------------
+# Visualize Graph
+# ----------------------------------
+display(Image(compiled_graph.get_graph().draw_mermaid_png()))
+
+# ----------------------------------
+# Invoke Graph
+# ----------------------------------
+result = compiled_graph.invoke({
+    "messages": [
+        {"role": "user", "content": "Explain LangGraph in one sentence"}
+    ]
+})
+
+print("\nFinal Output:\n")
+print(result["messages"][-1].content)
