@@ -1,0 +1,49 @@
+!pip install langchain_google_genai langchain_community langgraph
+
+import os
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+from langchain_community.tools.tavily_search import TavilySearchResults
+from google.colab import userdata
+# 1. Setup API Keys
+os.environ["GOOGLE_API_KEY"] = userdata.get('GEMINI_API_KEY')
+os.environ["TAVILY_API_KEY"] = "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"
+ # Get one free at tavily.com
+
+
+# 2. Define your local tool
+@tool
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+    #return f"It's always sunny in {city}!"
+
+# 3. Initialize Search (Tavily is the 2025 standard for LLM search)
+search_tool = TavilySearchResults(max_results=2)
+
+# 4. Initialize Gemini
+# gemini-2.0-flash is highly recommended for agents due to speed/accuracy
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+
+# 5. Combine tools
+tools = [get_weather, search_tool]
+
+# 6. Create the Agent
+# In 2025, create_react_agent is the unified way to handle the Re-Act loop
+agent = create_react_agent(
+    model=llm,
+    tools=tools
+    system_prompt="You have access to get_weather and search_tool."
+)
+
+# 7. Run the Agent
+inputs = {"messages": [("user", "What is the weather in NYC and who is the current mayor?")]}
+
+print("--- Agent is processing ---")
+for chunk in agent.stream(inputs, stream_mode="values"):
+    # This prints the progression of the conversation
+    message = chunk["messages"][-1]
+    if hasattr(message, "content") and message.content:
+        print(f"\n[{message.type.upper()}]: {message.content}")
+
+
